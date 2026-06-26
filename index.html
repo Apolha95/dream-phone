@@ -243,6 +243,15 @@ body{font-family:'Lato',sans-serif;background:var(--ivory);color:var(--black);mi
   color:var(--pink-d);letter-spacing:0.5px;}
 .b-elim-x{position:absolute;top:2px;right:2px;background:var(--pink);color:#fff;border-radius:50%;
   width:17px;height:17px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:0.65rem;}
+/* trait pills on board cards */
+.b-traits{display:flex;flex-wrap:wrap;gap:2px;justify-content:center;padding:0 3px 4px;}
+.b-trait{font-size:0.48rem;background:var(--ivory);border:1px solid #e0d0ee;border-radius:20px;
+  padding:1px 4px;color:var(--mid);font-weight:700;white-space:nowrap;line-height:1.6;
+  transition:background .25s,border-color .25s,color .25s;}
+.b-trait.flash{background:var(--yellow);border-color:var(--yellow-d);color:var(--black);}
+/* clue trait tag in log */
+.clue-trait-tag{display:inline-block;background:var(--yellow);color:var(--black);
+  border-radius:20px;padding:1px 7px;font-size:0.62rem;font-weight:900;margin-left:4px;}
 
 /* HAND STRIP below board */
 .hand-strip{
@@ -910,14 +919,20 @@ function buildBoard(){
 
 function makeBoardCard(i){
   const c=crushes[i];
+  if(!c)return makePlaceholder();
   const el=document.createElement('div');
   el.className='b-card';el.id=`bc-${i}`;
+  const traitPills=(c.traits||[]).map(tid=>{
+    const t=ALL_TRAITS.find(x=>x.id===tid);
+    return t?`<span class="b-trait" data-trait="${tid}">${t.label}</span>`:'';
+  }).join('');
   el.innerHTML=`
     <div class="b-photo">${c.url?`<img src="${c.url}" alt="${c.name}" onerror="this.parentElement.innerHTML='💕'">`:'💕'}</div>
     <div class="b-info">
       <div class="b-name">${c.name}</div>
       <div class="b-num">📞 ${crushNumbers[i]}</div>
-    </div>`;
+    </div>
+    <div class="b-traits">${traitPills}</div>`;
   el.onclick=()=>toggleBoardElim(i);
   return el;
 }
@@ -1099,16 +1114,12 @@ function callCrush(ci){
     turnClues.push({who:c.name,text:clue,note:logNote,trait:traitUsed});
     renderClueLog();
 
-    // Auto-eliminate board cards with that trait (except secret admirer)
+    // Flash matching trait pills on all board cards so players can see who to cross off manually
     if(traitUsed){
-      let count=0;
-      crushes.forEach((crush,idx)=>{
-        if(idx===secretIdx)return;
-        if((crush.traits||[]).includes(traitUsed)&&!eliminated.has(idx)){
-          toggleBoardElim(idx);count++;
-        }
+      document.querySelectorAll(`.b-trait[data-trait="${traitUsed}"]`).forEach(pill=>{
+        pill.classList.add('flash');
+        setTimeout(()=>pill.classList.remove('flash'),4000);
       });
-      if(count>0) setTimeout(()=>speak(`${count} crush${count>1?'es':''} crossed off the board!`),1800);
     }
 
     // Discard and redraw
@@ -1125,9 +1136,11 @@ function callCrush(ci){
 function renderClueLog(){
   const el=document.getElementById('clue-log');
   if(!turnClues.length){el.innerHTML='<div class="empty-msg">No calls yet…</div>';return;}
-  el.innerHTML=turnClues.map(c=>
-    `<div class="clue-item"><span class="clue-who">${c.who}:</span> ${c.text}${c.note?`<em style="font-size:0.62rem;color:var(--yellow)"> ${c.note}</em>`:''}</div>`
-  ).join('');
+  el.innerHTML=turnClues.map(entry=>{
+    const t=entry.trait?ALL_TRAITS.find(x=>x.id===entry.trait):null;
+    const tag=t?`<span class="clue-trait-tag">${t.label}</span>`:'';
+    return `<div class="clue-item"><span class="clue-who">${entry.who}:</span> ${entry.text}${tag}${entry.note?`<em style="font-size:0.62rem;color:var(--yellow)"> ${entry.note}</em>`:''}</div>`;
+  }).join('');
 }
 
 // ─────────────────────────────────────────────────
