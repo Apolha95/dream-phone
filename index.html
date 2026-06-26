@@ -347,7 +347,7 @@ body{font-family:'Lato',sans-serif;background:var(--ivory);color:var(--black);mi
 
 @media(max-width:700px){
   .game-wrap{flex-direction:column;}
-  .phone-col{width:120%;flex-direction:row;flex-wrap:wrap;padding:10px;}
+  .phone-col{width:100%;flex-direction:row;flex-wrap:wrap;padding:10px;}
   .board-cards-grid{grid-template-columns:repeat(4,1fr);}
   .guess-grid{grid-template-columns:repeat(3,1fr);}
 }
@@ -931,10 +931,17 @@ function makePlaceholder(){
 
 function toggleBoardElim(i){
   const el=document.getElementById(`bc-${i}`);
+  if(!el)return;
   if(eliminated.has(i)){
+    // Un-eliminate
     eliminated.delete(i);el.classList.remove('elim');
     const x=el.querySelector('.b-elim-x');if(x)x.remove();
   } else {
+    // FIX: never let the secret admirer be manually crossed off the board
+    if(i===secretIdx){
+      speak("You can't cross that one off — trust me, keep looking!");
+      return;
+    }
     eliminated.add(i);el.classList.add('elim');
     if(!el.querySelector('.b-elim-x')){
       const x=document.createElement('div');x.className='b-elim-x';x.textContent='✕';el.appendChild(x);
@@ -1063,18 +1070,20 @@ function callCrush(ci){
   pw.classList.add('ringing');
   setTimeout(()=>pw.classList.remove('ringing'),1400);
 
-  // Build negative clue from traits the called crush does NOT have
-  const calledTraits=new Set(Array.isArray(c.traits)?c.traits:[]);
-  const allIds=ALL_TRAITS.map(t=>t.id);
-  const notHave=allIds.filter(id=>!calledTraits.has(id));
+  // ── CORE FIX: clues are about the SECRET ADMIRER, not the called crush.
+  // You're calling a friend who tells you something the admirer does NOT have/do,
+  // so you can cross off everyone on the board who DOES have that trait.
+  const secret=crushes[secretIdx];
+  const secretTraits=new Set(Array.isArray(secret.traits)?secret.traits:[]);
+  const secretNotHave=ALL_TRAITS.map(t=>t.id).filter(id=>!secretTraits.has(id));
 
   let clue,traitUsed=null;
-  if(notHave.length>0){
-    traitUsed=notHave[Math.floor(Math.random()*notHave.length)];
+  if(secretNotHave.length>0){
+    traitUsed=secretNotHave[Math.floor(Math.random()*secretNotHave.length)];
     const fn=CLUE_LINES[traitUsed];
     clue=fn?fn():`He doesn't have the ${traitUsed} trait.`;
   } else {
-    clue=`${c.name} says: "I know who it is — but I'm not telling! Ha ha!"`;
+    clue=`He's got everything going for him — you'll have to narrow it down another way!`;
   }
 
   const isSpeaker=speakerActive;
@@ -1194,7 +1203,8 @@ function openGuess(){
   const grid=document.getElementById('guess-grid');
   grid.innerHTML='';
   crushes.forEach((c,i)=>{
-    if(eliminated.has(i))return;
+    // FIX: always show the secret admirer in the guess grid even if somehow eliminated
+    if(eliminated.has(i)&&i!==secretIdx)return;
     const el=document.createElement('div');
     el.className='go';el.id=`go-${i}`;el.onclick=()=>selectGuess(i);
     el.innerHTML=`
